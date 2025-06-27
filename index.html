@@ -1,8 +1,5 @@
 <!DOCTYPE html>
 <html>
-<meta http-equiv='cache-control' content='no-cache'> 
-<meta http-equiv='expires' content='0'> 
-<meta http-equiv='pragma' content='no-cache'>
 <head>
   <meta charset="UTF-8">
   <title>Weather Widget</title>
@@ -39,13 +36,11 @@
   </style>
 </head>
 <body>
-  <div class="weather" id="weather">
-    Loading weather...
-  </div>
+  <div class="weather" id="weather">Loading weather...</div>
 
   <script>
     async function getWeather() {
-      const url = "https://api.open-meteo.com/v1/forecast?latitude=52.4814&longitude=-1.8998&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&current=temperature_2m,relative_humidity_2m,precipitation,weather_code&timezone=auto&wind_speed_unit=mph";
+      const url = "https://api.open-meteo.com/v1/forecast?latitude=52.4814&longitude=-1.8998&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=weather_code&current=temperature_2m,relative_humidity_2m,precipitation,weather_code&timezone=auto";
 
       const iconMap = {
         0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️",
@@ -55,14 +50,31 @@
         66: "🌧️❄️", 67: "🌧️❄️",
         71: "🌨️", 73: "🌨️", 75: "❄️",
         77: "🌨️", 80: "🌦️", 81: "🌧️", 82: "🌧️",
-        85: "🌨️", 86: "❄️", 95: "⛈️", 96: "⛈️", 99: "⛈️❄️"
+        85: "🌨️", 86: "❄️",
+        95: "⛈️", 96: "⛈️", 99: "⛈️❄️"
       };
 
-      try {
-        const response = await fetch(url);
-        const data = await response.json();
+      const priority = [
+        99, 96, 95, // Thunder
+        82, 81, 80, 65, 63, 61, // Heavy rain
+        75, 73, 71, // Snow
+        55, 53, 51, // Drizzle
+        48, 45, // Fog
+        3, 2, 1, 0 // Cloudy to clear
+      ];
 
+      function summariseDay(hourlyCodes) {
+        for (let code of priority) {
+          if (hourlyCodes.includes(code)) return iconMap[code] || "❓";
+        }
+        return "❓";
+      }
+
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
         const current = data.current;
+        const hourly = data.hourly;
         const daily = data.daily;
 
         const currentIcon = iconMap[current.weather_code] || "❓";
@@ -77,14 +89,28 @@
           <div class="forecast">
         `;
 
+        // Loop through each of the next 7 days
         for (let i = 0; i < 7; i++) {
+          const dayStart = new Date(daily.time[i] + "T09:00");
+          const dayEnd = new Date(daily.time[i] + "T18:00");
+
+          // Find indexes for this time range
+          const dayCodes = [];
+          for (let j = 0; j < hourly.time.length; j++) {
+            const time = new Date(hourly.time[j]);
+            if (time >= dayStart && time <= dayEnd) {
+              dayCodes.push(hourly.weather_code[j]);
+            }
+          }
+
+          const bestIcon = summariseDay(dayCodes);
           const date = new Date(daily.time[i]);
-          const day = date.toLocaleDateString('en-GB', { weekday: 'short' });
-          const icon = iconMap[daily.weather_code[i]] || "❓";
+          const label = date.toLocaleDateString('en-GB', { weekday: 'short' });
+
           html += `
             <div class="forecast-day">
-              <div><strong>${day}</strong></div>
-              <div class="icon">${icon}</div>
+              <div><strong>${label}</strong></div>
+              <div class="icon">${bestIcon}</div>
               <div>${daily.temperature_2m_max[i]}° / ${daily.temperature_2m_min[i]}°</div>
             </div>
           `;
@@ -92,7 +118,6 @@
 
         html += `</div>`;
         document.getElementById("weather").innerHTML = html;
-
       } catch (error) {
         document.getElementById("weather").innerHTML = "Error loading weather.";
         console.error(error);
