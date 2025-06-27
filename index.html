@@ -15,11 +15,23 @@
       display: inline-block;
       background: #f0f8ff;
       border-radius: 10px;
-      max-width: 300px;
+      max-width: 320px;
     }
     .icon {
-      width: 64px;
-      height: 64px;
+      font-size: 32px;
+    }
+    .forecast {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    .forecast-day {
+      background: #fff;
+      padding: 6px;
+      border-radius: 6px;
+      box-shadow: 0 0 2px rgba(0,0,0,0.1);
     }
   </style>
 </head>
@@ -30,58 +42,54 @@
 
   <script>
     async function getWeather() {
-      const url = "https://api.open-meteo.com/v1/forecast?latitude=52.4814&longitude=-1.8998&daily=sunrise,sunset&hourly=temperature_2m,precipitation,wind_speed_10m,relative_humidity_2m&models=ukmo_seamless&current=temperature_2m,relative_humidity_2m,is_day,precipitation,weather_code&timezone=auto&wind_speed_unit=mph";
+      const url = "https://api.open-meteo.com/v1/forecast?latitude=52.4814&longitude=-1.8998&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&current=temperature_2m,relative_humidity_2m,precipitation,weather_code&timezone=auto&wind_speed_unit=mph";
 
       const iconMap = {
-        0: "☀️",          // Clear sky
-        1: "🌤️",         // Mainly clear
-        2: "⛅",          // Partly cloudy
-        3: "☁️",          // Overcast
-        45: "🌫️",         // Fog
-        48: "🌫️",         // Depositing rime fog
-        51: "🌦️",         // Light drizzle
-        53: "🌦️",         // Moderate drizzle
-        55: "🌧️",         // Dense drizzle
-        56: "🌧️",         // Light freezing drizzle
-        57: "🌧️",         // Dense freezing drizzle
-        61: "🌦️",         // Slight rain
-        63: "🌧️",         // Moderate rain
-        65: "🌧️",         // Heavy rain
-        66: "🌧️❄️",       // Freezing rain
-        67: "🌧️❄️",       // Heavy freezing rain
-        71: "🌨️",         // Snow fall slight
-        73: "🌨️",         // Moderate snow
-        75: "❄️",          // Heavy snow
-        77: "🌨️",         // Snow grains
-        80: "🌦️",         // Rain showers slight
-        81: "🌧️",         // Rain showers moderate
-        82: "🌧️",         // Rain showers violent
-        85: "🌨️",         // Snow showers slight
-        86: "❄️",          // Snow showers heavy
-        95: "⛈️",          // Thunderstorm
-        96: "⛈️",          // Thunderstorm with hail
-        99: "⛈️❄️"         // Thunderstorm with heavy hail
+        0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️",
+        45: "🌫️", 48: "🌫️",
+        51: "🌦️", 53: "🌦️", 55: "🌧️",
+        61: "🌦️", 63: "🌧️", 65: "🌧️",
+        66: "🌧️❄️", 67: "🌧️❄️",
+        71: "🌨️", 73: "🌨️", 75: "❄️",
+        77: "🌨️", 80: "🌦️", 81: "🌧️", 82: "🌧️",
+        85: "🌨️", 86: "❄️", 95: "⛈️", 96: "⛈️", 99: "⛈️❄️"
       };
 
       try {
         const response = await fetch(url);
         const data = await response.json();
-        const weather = data.current;
+
+        const current = data.current;
         const daily = data.daily;
 
-        const icon = iconMap[weather.weather_code] || "❓";
+        const currentIcon = iconMap[current.weather_code] || "❓";
 
-        const html = `
+        let html = `
           <h3>Birmingham Weather</h3>
-          <div style="font-size: 48px">${icon}</div>
-          <p><strong>Temperature:</strong> ${weather.temperature_2m} °C</p>
-          <p><strong>Humidity:</strong> ${weather.relative_humidity_2m} %</p>
-          <p><strong>Precipitation:</strong> ${weather.precipitation} mm</p>
-          <p><strong>Sunrise:</strong> ${daily.sunrise[0].split("T")[1]}</p>
-          <p><strong>Sunset:</strong> ${daily.sunset[0].split("T")[1]}</p>
+          <div style="font-size: 48px">${currentIcon}</div>
+          <p><strong>Now:</strong> ${current.temperature_2m}°C, ${current.relative_humidity_2m}% humidity</p>
+          <p><strong>Precipitation:</strong> ${current.precipitation} mm</p>
+          <p><strong>Sunrise:</strong> ${daily.sunrise[0].split("T")[1]} | <strong>Sunset:</strong> ${daily.sunset[0].split("T")[1]}</p>
+          <h4>7-Day Forecast</h4>
+          <div class="forecast">
         `;
 
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(daily.time[i]);
+          const day = date.toLocaleDateString('en-GB', { weekday: 'short' });
+          const icon = iconMap[daily.weather_code[i]] || "❓";
+          html += `
+            <div class="forecast-day">
+              <div><strong>${day}</strong></div>
+              <div class="icon">${icon}</div>
+              <div>${daily.temperature_2m_max[i]}° / ${daily.temperature_2m_min[i]}°</div>
+            </div>
+          `;
+        }
+
+        html += `</div>`;
         document.getElementById("weather").innerHTML = html;
+
       } catch (error) {
         document.getElementById("weather").innerHTML = "Error loading weather.";
         console.error(error);
